@@ -2,6 +2,8 @@ org 0x7C00
 bits 16
 
 %define ENDL 0x0D, 0x0A
+%define COM1_BASE 0x3F9
+%define BAUD_RATE 9600
 
 ;
 ; FAT12 header
@@ -35,55 +37,39 @@ ebr_system_id:    db 'FAT12   '
 start:
     jmp main
 
-
-;
-; Prints a string to the screen.
-; Params:
-;   - ds:si points to string
-;
-puts:
-    ; save registers we will modify
-    push si
-    push ax
-
-.loop:
-    lodsb           ; loads next character in al
-    or al, al
-    jz .done
-
-    mov ah, 0x0E
-    int 0x10
-
-    jmp .loop
-
-.done:
-    pop ax
-    pop si
-    ret
-
-
 main:
-    ; setup data segments
-    mov ax, 0           ; cannot write to ds/es directly
-    mov ds, ax
-    mov es, ax
+    ; set video mode to 320x200 256-color graphics mode
+    mov ax, 0013h
+    int 10h
 
-    ; setup the stack
-    mov ss, ax
-    mov sp, 0x7C00      ; stack grows down. therefore, this is the start of the os.
+    ; set pixel color to red (color index 4)
+    mov ah, 0Ch
+    mov al, 4
 
-    ; print message
-    mov si, msg_hello
-    call puts
+    ; set pixel coordinates (x=100, y=100)
+    mov cx, 100
+    mov dx, 100
+
+    ; calculate the pixel offset in the video memory buffer
+    mov bx, cx
+    shl bx, 1
+    shl dx, 8
+    add bx, dx
+
+    ; write pixel to video memory
+    mov es, [cs:video_segment]
+    mov di, bx
+    stosb
+
+    ; wait for a key press before exiting
+    mov ah, 00h
+    int 16h
     
-    hlt
+    mov ah, 4Ch
+    int 21h
 
-.halt:
-    jmp .halt
-
-
-
-msg_hello: db 'Hello world!', ENDL, 0
+video_segment:
+    dw 0A000h
 
 times 510-($-$$) db 0
 dw 0AA55h
