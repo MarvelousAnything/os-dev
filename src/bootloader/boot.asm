@@ -1,10 +1,6 @@
 org 0x7C00
 bits 16
 
-%define ENDL 0x0D, 0x0A
-%define COM1_BASE 0x3F9
-%define BAUD_RATE 9600
-
 ;
 ; FAT12 header
 ;
@@ -42,34 +38,68 @@ main:
     mov ax, 0013h
     int 10h
 
-    ; set pixel color to red (color index 4)
-    mov ah, 0Ch
-    mov al, 4
+    ; init the stack pointer
+    mov ax, 7C00h
+    mov ss, ax
+    mov sp, 0FFFFh
 
-    ; set pixel coordinates (x=100, y=100)
-    mov cx, 100
+    mov ah, 0Ch
+    mov al, 0000b
+    mov bh, 0
+    mov cx, 30
     mov dx, 100
 
-    ; calculate the pixel offset in the video memory buffer
-    mov bx, cx
-    shl bx, 1
-    shl dx, 8
-    add bx, dx
-
-    ; write pixel to video memory
-    mov es, [cs:video_segment]
-    mov di, bx
-    stosb
+    mov ax, 0       ; set color to red (index 4)
+    mov dx, 10      ; set y coordinate to 100
+    mov cx, 10      ; set x coordinate to 200
+    call draw_pixel ; call draw_pixel subroutine
 
     ; wait for a key press before exiting
     mov ah, 00h
     int 16h
-    
+
     mov ah, 4Ch
     int 21h
 
 video_segment:
     dw 0A000h
+
+; draw a pixel at (x, y) with color c
+draw_pixel:
+    push bp
+    mov bp, sp
+
+    ; save registers
+    push ax
+    push cx
+    push dx
+
+    ; set pixel color
+    mov ah, 0Ch
+    mov al, byte [bp+4]  ; load color value from stack
+    mov bh, 0
+    mov dx, word [bp+6]  ; load y coordinate from stack
+    mov cx, word [bp+8]  ; load x coordinate from stack
+
+    ; calculate offset address in video memory buffer
+    mov bx, dx
+    shl bx, 8
+    add bx, cx
+    shl bx, 1
+
+    ; write pixel to video memory
+    mov di, bx
+    mov es, [cs:video_segment]
+    mov byte [es:di], al
+
+    ; restore registers
+    pop dx
+    pop cx
+    pop ax
+
+    pop bp
+    ret
+
 
 times 510-($-$$) db 0
 dw 0AA55h

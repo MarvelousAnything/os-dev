@@ -6,7 +6,7 @@ BUILD_DIR=./build
 .PHONY: all floppy_image kernel bootloader clean always
 
 run: clean floppy_image
-	qemu-system-i386 -fda $(BUILD_DIR)/main_floppy.img
+	qemu-system-i386 -fda $(BUILD_DIR)/main_floppy.img -vga cirrus
 
 #
 # Floppy image
@@ -27,7 +27,7 @@ $(BUILD_DIR)/main_floppy.img: bootloader kernel
 bootloader: $(BUILD_DIR)/bootloader.bin
 
 $(BUILD_DIR)/bootloader.bin: always
-	$(ASM) $(SRC_DIR)/bootloader/boot.asm -f bin -o $(BUILD_DIR)/bootloader.bin
+	$(ASM) $(SRC_DIR)/bootloader/boot.asm -f bin -g -o $(BUILD_DIR)/bootloader.bin
 
 #
 # Kernel
@@ -35,7 +35,7 @@ $(BUILD_DIR)/bootloader.bin: always
 kernel: $(BUILD_DIR)/kernel.bin
 
 $(BUILD_DIR)/kernel.bin: always
-	$(ASM) $(SRC_DIR)/kernel/main.asm -f bin -o $(BUILD_DIR)/kernel.bin
+	$(ASM) $(SRC_DIR)/kernel/main.asm -f bin -g -o $(BUILD_DIR)/kernel.bin
 
 
 #
