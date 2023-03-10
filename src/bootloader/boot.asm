@@ -3,13 +3,14 @@ bits 16
 
 %define ENDL 0x0A, 0x0D
 
-;
-; FAT12 header
-;
+global start
 
 jmp short start
 nop
 
+;
+; FAT12 header
+;
 bdb_oem: db 'MSWIN4.1'   ; 8 bytes
 bdb_bytes_per_sector: dw 512
 bdb_sectors_per_cluster: db 1
@@ -77,6 +78,7 @@ main:
 
     mov si, msg_hello
     call puts
+    cli
 
     hlt
 
