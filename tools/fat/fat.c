@@ -34,7 +34,7 @@ int read_boot_sector(FILE* disk, boot_sector* bs) {
 }
 
 int read_sectors(FILE* disk, uint32_t lba, uint32_t count, void* buffer) {
-    int result = fseek(disk, lba * g_bs.sectors_per_cluster, SEEK_SET);
+    int result = fseek(disk, lba * g_bs.bytes_per_sector, SEEK_SET);
     if (result != 0) {
         perror("Error seeking to sector");
         return READ_SECTOR_ERROR_SEEK; // error seeking to sector
@@ -141,26 +141,19 @@ directory_entry* find_file(const char* name) {
             continue;
         }
 
-        // convert name to char array
-        char name_arr[12];
-        for (int j = 0; j < 11; j++) {
-            name_arr[j] = (char) entry->name[j];
-        }
-
         // Check if the name matches
-        if (strncmp(name, name_arr, 11) == 0) {
+        if (memcmp(name, entry->name, 11) == 0) {
             return entry;
         }
     }
 
     // File not found
-    perror("File not found\n");
+    fprintf(stderr, "File \"%s\" not found\n", name);
     return NULL;
 }
 
 int read_file(directory_entry const* entry, FILE* disk, uint8_t* buffer) {
     uint16_t cluster = entry->first_cluster_low;
-    uint32_t bytes_remaining = entry->file_size;
 
     if (cluster == 0) {
         printf("File is empty");
@@ -172,19 +165,9 @@ int read_file(directory_entry const* entry, FILE* disk, uint8_t* buffer) {
         return INVALID_CLUSTER_NUMBER_ERROR;
     }
 
-    if (sizeof buffer < entry->file_size) {
-        perror("Buffer is too small\n");
-        return BUFFER_TOO_SMALL_ERROR;
-    }
-
     while (cluster < 0xFF8) {  // Stop if end of file or bad cluster
         uint32_t lba = g_root_dir_end + (cluster - 2) * g_bs.sectors_per_cluster;
         uint32_t sector_count = g_bs.sectors_per_cluster;
-
-        // If we don't need a full cluster, adjust the lba count
-        if (bytes_remaining < g_bs.bytes_per_sector * g_bs.sectors_per_cluster) {
-            sector_count = (bytes_remaining + g_bs.bytes_per_sector - 1) / g_bs.bytes_per_sector;
-        }
 
         int result = read_sectors(disk, lba, sector_count, buffer);
         if (result < 0) {
@@ -192,25 +175,75 @@ int read_file(directory_entry const* entry, FILE* disk, uint8_t* buffer) {
             return result;
         }
 
-        bytes_remaining -= sector_count * g_bs.bytes_per_sector;
         buffer += sector_count * g_bs.bytes_per_sector;
 
         // Get the next cluster
         uint32_t fat_index = cluster * 3 / 2; // This is because of the stupidness of 12-bits
         if (cluster % 2 == 0) {
-            cluster = g_fat[fat_index] & 0x0FFF;
+            cluster = (*(uint16_t*)(g_fat + fat_index)) & 0x0FFF;
         } else {
-            cluster = g_fat[fat_index + 1] >> 4;
-        }
-
-        if (bytes_remaining == 0) {
-            break;
+            cluster = (*(uint16_t*)(g_fat + fat_index)) >> 4;
         }
     }
 
     return 0;
 }
 
+directory_entry** list_entries() {
+    // Check if the root directory has been read
+    if (g_root_dir == NULL) {
+        perror("Root directory has not been read\n");
+        return NULL;
+    }
+
+    // Count the number of files
+    uint32_t file_count = 0;
+    for (uint32_t i = 0; i < g_bs.dir_entries_count; i++) {
+        directory_entry* entry = &g_root_dir[i];
+
+        // Check if the entry is empty
+        if (entry->name[0] == 0x00) {
+            break;
+        }
+
+        // Check if the entry is a file
+        if (entry->attributes & ATTR_DIRECTORY) {
+            printf("Skipping directory \"%s\"\n", entry->name);
+            continue;
+        }
+
+        file_count++;
+    }
+
+    // Allocate memory for the list of entries
+    directory_entry** entries = (directory_entry**)malloc((file_count + 1) * sizeof(directory_entry*));
+    if (entries == NULL) {
+        return NULL;
+    }
+
+    // Fill the list with entries
+    uint32_t index = 0;
+    for (uint32_t i = 0; i < g_bs.dir_entries_count; i++) {
+        directory_entry* entry = &g_root_dir[i];
+
+        // Check if the entry is empty
+        if (entry->name[0] == 0x00) {
+            break;
+        }
+
+        // Check if the entry is a file
+        if (entry->attributes & ATTR_DIRECTORY) {
+            continue;
+        }
+
+        entries[index++] = entry;
+    }
+
+    // Terminate the list with a NULL pointer
+    entries[index] = NULL;
+
+    return entries;
+}
 
 int main(int argc, char** argv) {
     if (argc < 3) {
@@ -286,8 +319,25 @@ int main(int argc, char** argv) {
             printf("<%02X>", file[i]);
         }
     }
+    printf("\n");
+
+    directory_entry **entries = list_entries();
+    if (entries == NULL) {
+        perror("Error listing entries");
+        free(file);
+        free(g_root_dir);
+        free(g_fat);
+        fclose(disk);
+        return EXIT_FAILURE;
+    }
+
+    for (uint32_t i = 0; entries[i] != NULL; i++) {
+        printf("%s", entries[i]->name);
+        printf("\n");
+    }
 
     // Free the memory
+    free(entries);
     free(file);
     free(g_root_dir);
     free(g_fat);
