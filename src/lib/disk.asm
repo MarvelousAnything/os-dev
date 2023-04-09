@@ -96,3 +96,6 @@ disk_reset:
     popa
     ret
 
+;
+;   searches for a file in the root directory
+;

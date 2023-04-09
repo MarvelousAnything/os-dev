@@ -30,6 +30,7 @@ int read_boot_sector(FILE* disk, boot_sector* bs) {
         return INVALID_BOOT_SECTOR_FIELDS_ERROR;
     }
 
+
     return 0;  // Success
 }
 

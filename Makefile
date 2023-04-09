@@ -37,6 +37,11 @@ bootloader: $(BUILD_DIR)/bootloader.bin
 $(BUILD_DIR)/bootloader.bin: always
 	$(ASM) $(SRC_DIR)/bootloader/boot.asm -f bin -g -o $(BUILD_DIR)/bootloader.bin
 
+symbols: $(BUILD_DIR)/bootloader.elf
+
+$(BUILD_DIR)/bootloader.elf: always
+	$(ASM) $(SRC_DIR)/bootloader/boot.asm -f elf -F dwarf -g -o $(BUILD_DIR)/bootloader.elf
+
 #
 # Kernel
 #
@@ -66,4 +71,5 @@ always:
 #
 clean:
 	rm -rf $(BUILD_DIR)/*
+
 	
